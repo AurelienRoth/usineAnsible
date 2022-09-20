@@ -1,0 +1,50 @@
+---
+- name: sonar installed
+  become: yes
+  hosts: ci
+  tasks:
+  - name: sonar user created
+    user:
+      name: sonarqube
+      create_home: no
+      shell: /bin/false
+
+  - name: get sonarqube
+    unarchive:
+      src: https://binaries.sonarsource.com/Distribution/sonarqube/sonarqube-7.9.6.zip
+      dest: /opt/
+      owner: sonarqube
+      group: sonarqube
+      remote_src: yes
+      creates: /opt/sonarqube
+
+#  - name: Check that the somefile.conf exists
+#      stat:
+#      path: /etc/file.txt
+#      register: stat_result
+
+#  - name: Create the file, if it doesnt exist already
+#      file:
+#      path: /etc/file.txt
+#      state: touch
+#        when: not stat_result.stat.exists 
+
+  - name: rename sonar folder
+    command: mv /opt/sonarqube-7.9.6 /opt/sonarqube
+    args:
+      creates: /opt/sonarqube
+ 
+  - name: sonarqube service created
+    template:
+      src: templates/sonarqube.service.j2
+      dest: /etc/systemd/system/sonarqube.service
+      owner: root
+      group: root
+      mode: "0644"
+
+  - name: start sonarqube service
+    systemd:
+      daemon_reload: yes
+      name: sonarqube
+      state: started
+      enabled: yes

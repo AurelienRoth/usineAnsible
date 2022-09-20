@@ -1,0 +1,87 @@
+---
+- name: tomcat server installed
+  hosts: prod
+  become: yes
+  vars:
+    java_jdk_version: java-11-openjdk-devel
+    tomcat_major_version: 8
+    tomcat_version: 8.5.82
+
+  tasks:
+  # install utilities
+  - name: install package
+    yum:
+      name:
+      - net-tools
+      - epel-release
+
+  # install java
+  - name: install jdk
+    yum:
+      name: "{{java_jdk_version}}"
+      state: latest
+      update_cache: yes
+
+  - name: Set JAVA_HOME
+    lineinfile:
+      dest: /etc/environment
+      state: present
+      regexp: '^JAVA_HOME'
+      line: 'JAVA_HOME=/usr/lib/jvm/java-1.11.0-openjdk'
+
+######### install tomcat ######
+
+  - name: user tomcat created
+    user:
+      name: tomcat
+      shell: /bin/false
+      home: /opt/tomcat
+
+  - name: install tomcat
+    unarchive:
+      src: https://dlcdn.apache.org/tomcat/tomcat-{{tomcat_major_version}}/v{{tomcat_version}}/bin/apache-tomcat-{{tomcat_version}}.tar.gz
+      remote_src: yes
+      dest: /opt/
+      validate_certs: no 
+
+  - name: copy tomcat under tomcat folder
+    shell: mv /opt/apache-tomcat-{{tomcat_version}}/* /opt/tomcat
+    args:
+      creates: /opt/tomcat/bin
+
+  - name: remove unused files
+    file:
+      path: /opt/apache-tomcat-{{tomcat_version}}
+      state: absent
+
+  - name: edit context files
+    template:
+      src: templates/context.xml.j2
+      dest: "{{item}}"
+    loop:
+    - /opt/tomcat/webapps/host-manager/META-INF/context.yml
+    - /opt/tomcat/webapps/manager/META-INF/context.yml
+
+  - name: edit users file
+    template:
+      src: templates/tomcat-users.xml.j2
+      dest: /opt/tomcat/conf/tomcat-users.xml
+
+  - name: change tomcat files ownership
+    file:
+      path: /opt/tomcat/
+      owner: tomcat
+      group: tomcat
+      recurse: yes
+
+  - name: create tomcat service
+    template:
+      src: templates/tomcat.service.j2
+      dest: /etc/systemd/system/tomcat.service
+
+  - name: tomcat started ans enabled
+    systemd:
+      name: tomcat
+      state: restarted
+      daemon_reload: yes
+      enabled: yes

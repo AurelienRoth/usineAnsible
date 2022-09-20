@@ -1,0 +1,126 @@
+---
+- name: jenkins machines provisioned
+  hosts: ci
+  become: yes
+  vars:
+    maven_major_version: 3
+    maven_version: 3.8.6
+    java_jdk_version: java-11-openjdk-devel
+
+  tasks:
+  # install utilities
+  - name: install package
+    yum:
+      name:
+      - wget
+      - unzip
+      - tree
+      - net-tools
+      - curl
+  - name: install git
+    include_tasks: git-tasks.yml
+
+  # install java
+  - name: install jdk
+    yum:
+      name: "{{java_jdk_version}}"
+      state: latest
+      update_cache: yes
+
+  - name: Set JAVA_HOME
+    lineinfile:
+      dest: /etc/environment
+      state: present
+      regexp: '^JAVA_HOME'
+      line: 'JAVA_HOME=/usr/lib/jvm/java-11-openjdk-11.0.16.0.8-1.el7_9.x86_64'
+
+  # install maven
+
+# - name: install maven from role
+#   include_role:
+#     name: maven-role
+
+
+  - name: install maven
+    unarchive:
+      src: https://dlcdn.apache.org/maven/maven-{{maven_major_version}}/{{maven_version}}/binaries/apache-maven-{{maven_version}}-bin.tar.gz
+      remote_src: yes
+      dest: /opt/
+      validate_certs: no 
+#  - name: maven.sh
+#    copy:
+#      src: files/maven.sh
+#      dest: /etc/profile.d/maven.sh
+#      mode: '755'
+  - name: Set MAVEN_HOME
+    become: true
+    lineinfile:
+      dest: /etc/profile.d/maven.sh
+      create: yes
+      state: present
+      mode: '0744'
+      line: "{{ item }}"
+    with_items:
+    - "export M2_HOME=/opt/apache-maven-{{maven_version}}"
+    - "export MAVEN_HOME=/opt/apache-maven-{{maven_version}}"
+    - "export PATH=${M2_HOME}/bin:${PATH}"
+
+#####  INSTALL JENKINS  #########
+  - name: Ensure Jenkins Repository is Installed
+    yum_repository:
+      name: jenkins
+      state: present
+      description: Official Jenkins Yum Repo
+      baseurl: http://pkg.jenkins.io/redhat-stable
+      gpgkey: https://jenkins-ci.org/redhat-stable/jenkins-ci.org.key
+      gpgcheck: yes
+      enabled: yes
+
+  - name: Ensure Jenkins is Installed
+    yum:
+      name: jenkins
+      update_cache: yes
+      state: present
+
+  - name: Enable and Start the Jenkins Service
+    service:
+      name: jenkins
+      enabled: yes
+      state: started
+
+  - name: docker installed and running
+    include_tasks: docker-tasks_prof.yml
+
+  - name: add jenkins user to docker group
+    user:
+      name: jenkins
+      groups: docker
+      append: yes
+
+
+
+#  - name: print jenkins password #marche pas en l'état, voir  "slurp"
+#    debug:
+#      msg: "the jenkins password is : {{ lookup('file', '/var/lib/jenkins/secrets/initialAdminPassword') }}"
+# permet de lancer seulement cette partie du playbook : ansible-playbook --tags "tag"(ou --without-tags) +fichier
+#    tags:
+#    - password
+
+
+#  - name: Open Firewall Port
+#    firewalld:
+#      zone: public
+#      port: 8080/tcp
+#      permanent: true
+#      state: enabled
+#      immediate: true
+
+###INSTALL SONARQUBE
+#  - name: install sonarqube
+#   unarchive:
+#      src: https://binaries.sonarsource.com/Distribution/sonarqube/sonarqube-7.9.6.zip
+#      remote_src: yes
+#      dest: /opt/
+#      validate_certs: no
+
+

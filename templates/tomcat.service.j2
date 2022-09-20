@@ -1,0 +1,17 @@
+[Unit]
+Description=Tomcat 8
+After=network.target network-online.target
+Wants=network-online.target
+
+[Service]
+ExecStart=/opt/tomcat/bin/startup.sh
+ExecStop=/opt/tomcat/bin/shutdown.sh
+Restart=on-failure
+RestartSec=10
+User=tomcat
+Group=tomcat
+Type=forking
+RemainAfterExit = yes
+
+[Install]
+WantedBy=multi-user.target
